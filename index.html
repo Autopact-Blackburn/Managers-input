@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Manager Daily Input</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  :root {
+    --bg: #080b16;
+    --card: #111827;
+    --text: #e7eaf1;
+    --muted: #9ba3b5;
+    --accent: #00c2ff;
+    --danger: #ff5252;
+    --success: #22c55e;
+    --border: #1e2638;
+  }
+
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: 40px;
+  }
+
+  .container {
+    max-width: 540px;
+    margin: 20px auto;
+    padding: 20px;
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+
+  h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: var(--accent);
+  }
+
+  select, input {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0 18px;
+    background: #0b1120;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 15px;
+  }
+
+  label {
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .btn {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    border-radius: 8px;
+    cursor: pointer;
+    border: none;
+    background: var(--accent);
+    color: #000;
+    margin-top: 10px;
+  }
+
+  .btn:active {
+    opacity: 0.8;
+  }
+
+  .success, .error {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+    display: none;
+    font-weight: 600;
+  }
+
+  .success { background: var(--success); color: #000; }
+  .error { background: var(--danger); color: #fff; }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+  <h2>Manager Daily Entry</h2>
+
+  <label>Select Your Department</label>
+  <select id="departmentSelect">
+    <optgroup label="Sales Departments">
+      <option>Blackburn Kia</option>
+      <option>Blackburn Nissan</option>
+      <option>Blackburn GWM</option>
+      <option>Blackburn Used</option>
+
+      <option>Burwood Nissan</option>
+      <option>Burwood XPENG</option>
+      <option>Burwood GWM</option>
+      <option>Burwood Used</option>
+
+      <option>FTG Kia</option>
+      <option>FTG Hyundai</option>
+      <option>FTG Used</option>
+
+      <option>Knox Geely New</option>
+      <option>Knox Geely Used</option>
+
+      <option>Knox Mitsubishi New</option>
+      <option>Knox Mitsubishi Used</option>
+
+      <option>Lilydale Kia</option>
+      <option>Lilydale SsangYong</option>
+      <option>Lilydale GMSV</option>
+      <option>Lilydale Used</option>
+    </optgroup>
+
+    <optgroup label="Service Departments">
+      <option>Blackburn Service</option>
+      <option>Burwood Service</option>
+      <option>FTG Service</option>
+      <option>Knox Geely Service</option>
+      <option>Knox Mitsubishi Service</option>
+      <option>Lilydale Service</option>
+      <option>Wollongong Service</option>
+    </optgroup>
+  </select>
+
+  <div id="formArea"></div>
+
+  <button class="btn" id="submitBtn">Submit</button>
+
+  <div class="success" id="successMsg">✔ Submitted Successfully!</div>
+  <div class="error" id="errorMsg">⚠ Something went wrong. Try again.</div>
+</div>
+
+<script>
+  const supabaseUrl = "https://ecldmrzlfexinvyyilpi.supabase.co";
+  const supabaseKey = "sb_publishable_8E6BQ2E2-uNz2O3W9TqdQQ_aOC_GXVz";
+  const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+  const departmentSelect = document.getElementById("departmentSelect");
+  const formArea = document.getElementById("formArea");
+  const successMsg = document.getElementById("successMsg");
+  const errorMsg = document.getElementById("errorMsg");
+
+  function isServiceDepartment(dept) {
+    return dept.toLowerCase().includes("service");
+  }
+
+  function renderForm() {
+    const dept = departmentSelect.value;
+    formArea.innerHTML = "";
+
+    if (isServiceDepartment(dept)) {
+      formArea.innerHTML = `
+        <label>Customer ROs Closed Today</label>
+        <input type="number" id="custRos">
+
+        <label>Warranty ROs Closed Today</label>
+        <input type="number" id="warrRos">
+
+        <label>Invoiced Not Closed Remaining</label>
+        <input type="number" id="invRemain">
+
+        <label>Gross Today ($)</label>
+        <input type="number" id="grossToday">
+      `;
+    } else {
+      formArea.innerHTML = `
+        <label>Leads Today</label>
+        <input type="number" id="leads">
+
+        <label>Sales Today</label>
+        <input type="number" id="sales">
+      `;
+    }
+  }
+
+  departmentSelect.onchange = renderForm;
+  renderForm();
+
+  document.getElementById("submitBtn").onclick = async () => {
+    successMsg.style.display = "none";
+    errorMsg.style.display = "none";
+
+    const dept = departmentSelect.value;
+    const today = new Date().toISOString().split("T")[0];
+
+    if (isServiceDepartment(dept)) {
+      const payload = {
+        date: today,
+        site: dept,
+        customer_ros: Number(document.getElementById("custRos").value || 0),
+        warranty_ros_today: Number(document.getElementById("warrRos").value || 0),
+        invoiced_remaining: Number(document.getElementById("invRemain").value || 0),
+        gross_today: Number(document.getElementById("grossToday").value || 0),
+        target_gross: 0,
+        working_days: 22
+      };
+
+      const { data, error } = await supabase
+        .from("service_reports")
+        .insert([payload]);
+
+      console.log("SERVICE INSERT RESULT:", { data, error });
+
+      if (error) {
+        console.error("SERVICE ERROR:", error);
+        errorMsg.style.display = "block";
+      } else {
+        successMsg.style.display = "block";
+      }
+      return;
+    }
+
+    const location = dept.split(" ")[0];
+
+    const { error } = await supabase.from("sales_reports").insert([{
+      date: today,
+      location,
+      department: dept,
+      leads: Number(document.getElementById("leads").value || 0),
+      sales: Number(document.getElementById("sales").value || 0)
+    }]);
+
+    if (error) {
+      console.error("SALES ERROR:", error);
+      errorMsg.style.display = "block";
+    } else {
+      successMsg.style.display = "block";
+    }
+  };
+</script>
+
+</body>
+</html>
