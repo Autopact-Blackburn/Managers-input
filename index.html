@@ -5,7 +5,7 @@
 <title>Manager Daily Input</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- Supabase CDN -->
+<!-- Supabase CDN (DO NOT CREATE A VARIABLE NAMED supabase) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -147,112 +147,117 @@
 </div>
 
 <script>
-  /* ===============================
-     SUPABASE – SAFE, NO COLLISIONS
-     =============================== */
-  if (!window._sb) {
-    window._sb = window.supabase.createClient(
-      "https://ecldmrzlfexinvyyilpi.supabase.co",
-      "sb_publishable_8E6BQ2E2-uNz2O3W9TqdQQ_aOC_GXVz"
-    );
+/* =====================================================
+   SUPABASE CLIENT (SINGLE SOURCE OF TRUTH)
+   ===================================================== */
+
+const sb = window.supabase.createClient(
+  "https://ecldmrzlfexinvyyilpi.supabase.co",
+  "sb_publishable_8E6BQ2E2-uNz2O3W9TqdQQ_aOC_GXVz"
+);
+
+/* =====================================================
+   DOM
+   ===================================================== */
+
+const departmentSelect = document.getElementById("departmentSelect");
+const formArea = document.getElementById("formArea");
+const successMsg = document.getElementById("successMsg");
+const errorMsg = document.getElementById("errorMsg");
+
+const isServiceDepartment = dept =>
+  dept.toLowerCase().includes("service");
+
+const numberInput = id => `
+  <input type="number" id="${id}" step="1" min="0" inputmode="numeric">
+  <div class="hint">Enter whole numbers only (no decimals or commas)</div>
+`;
+
+function renderForm() {
+  const dept = departmentSelect.value;
+  formArea.innerHTML = "";
+
+  if (isServiceDepartment(dept)) {
+    formArea.innerHTML = `
+      <label>Customer ROs Closed Today</label>
+      ${numberInput("custRos")}
+
+      <label>Warranty ROs Closed Today</label>
+      ${numberInput("warrRos")}
+
+      <label>Invoiced Not Closed Remaining</label>
+      ${numberInput("invRemain")}
+
+      <label>Gross Today ($)</label>
+      ${numberInput("grossToday")}
+    `;
+  } else {
+    formArea.innerHTML = `
+      <label>Leads Today</label>
+      ${numberInput("leads")}
+
+      <label>Sales Today</label>
+      ${numberInput("sales")}
+    `;
   }
-  const sb = window._sb;
+}
 
-  /* ===============================
-     DOM REFERENCES
-     =============================== */
-  const departmentSelect = document.getElementById("departmentSelect");
-  const formArea = document.getElementById("formArea");
-  const successMsg = document.getElementById("successMsg");
-  const errorMsg = document.getElementById("errorMsg");
+departmentSelect.addEventListener("change", renderForm);
+renderForm();
 
-  const isServiceDepartment = dept =>
-    dept.toLowerCase().includes("service");
+/* =====================================================
+   SUBMIT
+   ===================================================== */
 
-  const numberInput = id => `
-    <input type="number" id="${id}" step="1" min="0" inputmode="numeric">
-    <div class="hint">Enter whole numbers only (no decimals or commas)</div>
-  `;
+document.getElementById("submitBtn").addEventListener("click", async () => {
+  successMsg.style.display = "none";
+  errorMsg.style.display = "none";
 
-  function renderForm() {
-    const dept = departmentSelect.value;
-    formArea.innerHTML = "";
+  const dept = departmentSelect.value;
+  const today = new Date().toISOString().split("T")[0];
 
+  try {
     if (isServiceDepartment(dept)) {
-      formArea.innerHTML = `
-        <label>Customer ROs Closed Today</label>
-        ${numberInput("custRos")}
+      const payload = {
+        date: today,
+        site: dept,
+        customer_ros: +document.getElementById("custRos").value || 0,
+        warranty_ros_today: +document.getElementById("warrRos").value || 0,
+        invoiced_remaining: +document.getElementById("invRemain").value || 0,
+        gross_today: +document.getElementById("grossToday").value || 0,
+        target_gross: 0,
+        working_days: 22
+      };
 
-        <label>Warranty ROs Closed Today</label>
-        ${numberInput("warrRos")}
+      const { error } = await sb
+        .from("service_reports")
+        .insert([payload]);
 
-        <label>Invoiced Not Closed Remaining</label>
-        ${numberInput("invRemain")}
+      if (error) throw error;
 
-        <label>Gross Today ($)</label>
-        ${numberInput("grossToday")}
-      `;
     } else {
-      formArea.innerHTML = `
-        <label>Leads Today</label>
-        ${numberInput("leads")}
+      const location = dept.split(" ")[0];
 
-        <label>Sales Today</label>
-        ${numberInput("sales")}
-      `;
-    }
-  }
-
-  departmentSelect.addEventListener("change", renderForm);
-  renderForm();
-
-  document.getElementById("submitBtn").addEventListener("click", async () => {
-    successMsg.style.display = "none";
-    errorMsg.style.display = "none";
-
-    const dept = departmentSelect.value;
-    const today = new Date().toISOString().split("T")[0];
-
-    try {
-      if (isServiceDepartment(dept)) {
-        const payload = {
+      const { error } = await sb
+        .from("sales_reports")
+        .insert([{
           date: today,
-          site: dept,
-          customer_ros: +document.getElementById("custRos").value || 0,
-          warranty_ros_today: +document.getElementById("warrRos").value || 0,
-          invoiced_remaining: +document.getElementById("invRemain").value || 0,
-          gross_today: +document.getElementById("grossToday").value || 0,
-          target_gross: 0,
-          working_days: 22
-        };
+          location,
+          department: dept,
+          leads: +document.getElementById("leads").value || 0,
+          sales: +document.getElementById("sales").value || 0
+        }]);
 
-        const { error } = await sb
-          .from("service_reports")
-          .insert([payload]);
-
-        if (error) throw error;
-      } else {
-        const location = dept.split(" ")[0];
-
-        const { error } = await sb
-          .from("sales_reports")
-          .insert([{
-            date: today,
-            location,
-            department: dept,
-            leads: +document.getElementById("leads").value || 0,
-            sales: +document.getElementById("sales").value || 0
-          }]);
-
-        if (error) throw error;
-      }
-
-      successMsg.style.display = "block";
-    } catch (err) {
-      console.error(err);
-      errorMsg.style.display = "block";
+      if (error) throw error;
     }
-  });
+
+    successMsg.style.display = "block";
+
+  } catch (err) {
+    console.error(err);
+    errorMsg.style.display = "block";
+  }
+});
 </script>
 
 </body>
