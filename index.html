@@ -5,7 +5,7 @@
 <title>Manager Daily Input</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- Supabase -->
+<!-- Supabase CDN -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -147,15 +147,20 @@
 </div>
 
 <script>
-  // ---- SAFE GLOBAL SUPABASE (never redeclared) ----
-  if (!window._supabaseClient) {
-    window._supabaseClient = window.supabase.createClient(
+  /* ===============================
+     SUPABASE – SAFE, NO COLLISIONS
+     =============================== */
+  if (!window._sb) {
+    window._sb = window.supabase.createClient(
       "https://ecldmrzlfexinvyyilpi.supabase.co",
       "sb_publishable_8E6BQ2E2-uNz2O3W9TqdQQ_aOC_GXVz"
     );
   }
-  const supabase = window._supabaseClient;
+  const sb = window._sb;
 
+  /* ===============================
+     DOM REFERENCES
+     =============================== */
   const departmentSelect = document.getElementById("departmentSelect");
   const formArea = document.getElementById("formArea");
   const successMsg = document.getElementById("successMsg");
@@ -221,7 +226,7 @@
           working_days: 22
         };
 
-        const { error } = await supabase
+        const { error } = await sb
           .from("service_reports")
           .insert([payload]);
 
@@ -229,7 +234,7 @@
       } else {
         const location = dept.split(" ")[0];
 
-        const { error } = await supabase
+        const { error } = await sb
           .from("sales_reports")
           .insert([{
             date: today,
