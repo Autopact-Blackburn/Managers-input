@@ -43,10 +43,22 @@
     color: var(--accent);
   }
 
+  label {
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .hint {
+    font-size: 12px;
+    color: #7f8bb3;
+    margin-top: -10px;
+    margin-bottom: 14px;
+  }
+
   select, input {
     width: 100%;
     padding: 12px;
-    margin: 10px 0 18px;
+    margin: 10px 0 6px;
     background: #0b1120;
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -54,27 +66,17 @@
     font-size: 15px;
   }
 
-  label {
-    font-size: 14px;
-    color: var(--muted);
-  }
-
   .btn {
     width: 100%;
     padding: 14px;
     font-size: 16px;
     font-weight: 600;
-    text-align: center;
     border-radius: 8px;
     cursor: pointer;
     border: none;
     background: var(--accent);
     color: #000;
-    margin-top: 10px;
-  }
-
-  .btn:active {
-    opacity: 0.8;
+    margin-top: 12px;
   }
 
   .success, .error {
@@ -145,18 +147,27 @@
 </div>
 
 <script>
-  const supabaseUrl = "https://ecldmrzlfexinvyyilpi.supabase.co";
-  const supabaseKey = "sb_publishable_8E6BQ2E2-uNz2O3W9TqdQQ_aOC_GXVz";
-  const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+  // ---- SAFE GLOBAL SUPABASE (never redeclared) ----
+  if (!window._supabaseClient) {
+    window._supabaseClient = window.supabase.createClient(
+      "https://ecldmrzlfexinvyyilpi.supabase.co",
+      "sb_publishable_8E6BQ2E2-uNz2O3W9TqdQQ_aOC_GXVz"
+    );
+  }
+  const supabase = window._supabaseClient;
 
   const departmentSelect = document.getElementById("departmentSelect");
   const formArea = document.getElementById("formArea");
   const successMsg = document.getElementById("successMsg");
   const errorMsg = document.getElementById("errorMsg");
 
-  function isServiceDepartment(dept) {
-    return dept.toLowerCase().includes("service");
-  }
+  const isServiceDepartment = dept =>
+    dept.toLowerCase().includes("service");
+
+  const numberInput = id => `
+    <input type="number" id="${id}" step="1" min="0" inputmode="numeric">
+    <div class="hint">Enter whole numbers only (no decimals or commas)</div>
+  `;
 
   function renderForm() {
     const dept = departmentSelect.value;
@@ -165,82 +176,78 @@
     if (isServiceDepartment(dept)) {
       formArea.innerHTML = `
         <label>Customer ROs Closed Today</label>
-        <input type="number" id="custRos">
+        ${numberInput("custRos")}
 
         <label>Warranty ROs Closed Today</label>
-        <input type="number" id="warrRos">
+        ${numberInput("warrRos")}
 
         <label>Invoiced Not Closed Remaining</label>
-        <input type="number" id="invRemain">
+        ${numberInput("invRemain")}
 
         <label>Gross Today ($)</label>
-        <input type="number" id="grossToday">
+        ${numberInput("grossToday")}
       `;
     } else {
       formArea.innerHTML = `
         <label>Leads Today</label>
-        <input type="number" id="leads">
+        ${numberInput("leads")}
 
         <label>Sales Today</label>
-        <input type="number" id="sales">
+        ${numberInput("sales")}
       `;
     }
   }
 
-  departmentSelect.onchange = renderForm;
+  departmentSelect.addEventListener("change", renderForm);
   renderForm();
 
-  document.getElementById("submitBtn").onclick = async () => {
+  document.getElementById("submitBtn").addEventListener("click", async () => {
     successMsg.style.display = "none";
     errorMsg.style.display = "none";
 
     const dept = departmentSelect.value;
     const today = new Date().toISOString().split("T")[0];
 
-    if (isServiceDepartment(dept)) {
-      const payload = {
-        date: today,
-        site: dept,
-        customer_ros: Number(document.getElementById("custRos").value || 0),
-        warranty_ros_today: Number(document.getElementById("warrRos").value || 0),
-        invoiced_remaining: Number(document.getElementById("invRemain").value || 0),
-        gross_today: Number(document.getElementById("grossToday").value || 0),
-        target_gross: 0,
-        working_days: 22
-      };
+    try {
+      if (isServiceDepartment(dept)) {
+        const payload = {
+          date: today,
+          site: dept,
+          customer_ros: +document.getElementById("custRos").value || 0,
+          warranty_ros_today: +document.getElementById("warrRos").value || 0,
+          invoiced_remaining: +document.getElementById("invRemain").value || 0,
+          gross_today: +document.getElementById("grossToday").value || 0,
+          target_gross: 0,
+          working_days: 22
+        };
 
-      const { data, error } = await supabase
-        .from("service_reports")
-        .insert([payload]);
+        const { error } = await supabase
+          .from("service_reports")
+          .insert([payload]);
 
-      console.log("SERVICE INSERT RESULT:", { data, error });
-
-      if (error) {
-        console.error("SERVICE ERROR:", error);
-        errorMsg.style.display = "block";
+        if (error) throw error;
       } else {
-        successMsg.style.display = "block";
+        const location = dept.split(" ")[0];
+
+        const { error } = await supabase
+          .from("sales_reports")
+          .insert([{
+            date: today,
+            location,
+            department: dept,
+            leads: +document.getElementById("leads").value || 0,
+            sales: +document.getElementById("sales").value || 0
+          }]);
+
+        if (error) throw error;
       }
-      return;
-    }
 
-    const location = dept.split(" ")[0];
-
-    const { error } = await supabase.from("sales_reports").insert([{
-      date: today,
-      location,
-      department: dept,
-      leads: Number(document.getElementById("leads").value || 0),
-      sales: Number(document.getElementById("sales").value || 0)
-    }]);
-
-    if (error) {
-      console.error("SALES ERROR:", error);
-      errorMsg.style.display = "block";
-    } else {
       successMsg.style.display = "block";
+    } catch (err) {
+      console.error(err);
+      errorMsg.style.display = "block";
     }
-  };
+  });
 </script>
 
 </body>
